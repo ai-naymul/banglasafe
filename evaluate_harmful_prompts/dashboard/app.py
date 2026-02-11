@@ -69,19 +69,48 @@ st.markdown("""
         line-height: 1.5;
     }
     .system-msg {
-        background-color: #e3f2fd;
+        background-color: #1e3a5f;
         border-left: 4px solid #2196F3;
         padding: 0.75rem;
         margin-bottom: 0.5rem;
         border-radius: 0.25rem;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
+        color: #e0e0e0;
+        line-height: 1.6;
     }
     .user-msg {
-        background-color: #fff3e0;
+        background-color: #3d2e1f;
         border-left: 4px solid #FF9800;
         padding: 0.75rem;
         margin-bottom: 0.5rem;
         border-radius: 0.25rem;
+        color: #e0e0e0;
+        line-height: 1.6;
+    }
+    .response-refused {
+        background-color: #1b4332;
+        border-left: 4px solid #4CAF50;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        color: #d8f3dc;
+        line-height: 1.6;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    .response-complied {
+        background-color: #3d1f1f;
+        border-left: 4px solid #f44336;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        color: #ffcdd2;
+        line-height: 1.6;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    .msg-label {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+        color: #90caf9;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -369,38 +398,49 @@ def display_prompt_response(row: pd.Series, show_system: bool = True):
     """Display a prompt-response pair in a nice format."""
 
     refused = row.get('refused', False)
-    status_color = "green" if refused else "red"
+    status_emoji = "🛡️" if refused else "⚠️"
     status_text = "REFUSED" if refused else "COMPLIED"
+    status_color = "#4CAF50" if refused else "#f44336"
 
     prompt_type = row.get('prompt_type', row.get('script', 'unknown'))
-    st.markdown(f"### {prompt_type.replace('_', ' ').title()} :{status_color}[{status_text}]")
+
+    # Header with status
+    st.markdown(
+        f"### {prompt_type.replace('_', ' ').title()} "
+        f"<span style='color: {status_color}; font-size: 0.9em;'>{status_emoji} {status_text}</span>",
+        unsafe_allow_html=True
+    )
 
     # Show system message if present
     if show_system and pd.notna(row.get('system_message')) and row.get('system_message'):
-        st.markdown("**System Message:**")
+        st.markdown('<p class="msg-label">📋 System Message:</p>', unsafe_allow_html=True)
         st.markdown(f'<div class="system-msg">{row["system_message"]}</div>', unsafe_allow_html=True)
 
     # Show user message
     user_msg = row.get('user_message', row.get('prompt_text', ''))
-    st.markdown("**User Message:**")
+    st.markdown('<p class="msg-label">💬 User Message:</p>', unsafe_allow_html=True)
     st.markdown(f'<div class="user-msg">{user_msg}</div>', unsafe_allow_html=True)
 
     # Show response
-    st.markdown("**Model Response:**")
     response = str(row.get('response', ''))
+    truncated = len(response) > 3000
+    display_response = response[:3000] + ("..." if truncated else "")
+
+    st.markdown('<p class="msg-label">🤖 Model Response:</p>', unsafe_allow_html=True)
 
     if refused:
-        st.success(response[:2000] + ("..." if len(response) > 2000 else ""))
+        st.markdown(f'<div class="response-refused">{display_response}</div>', unsafe_allow_html=True)
     else:
-        st.error(response[:2000] + ("..." if len(response) > 2000 else ""))
+        st.markdown(f'<div class="response-complied">{display_response}</div>', unsafe_allow_html=True)
 
-    # Show metadata
-    with st.expander("Details"):
+    # Show metadata in expander
+    with st.expander("📊 Details"):
         cols = st.columns(4)
-        cols[0].write(f"**Length:** {row.get('response_length', len(response))}")
-        cols[1].write(f"**Language:** {row.get('language', 'N/A')}")
-        cols[2].write(f"**Confidence:** {row.get('refusal_confidence', 'N/A')}")
-        cols[3].write(f"**Error:** {row.get('error', 'None')}")
+        cols[0].metric("Length", f"{row.get('response_length', len(response)):,}")
+        cols[1].metric("Language", row.get('language', 'N/A'))
+        cols[2].metric("Confidence", row.get('refusal_confidence', 'N/A'))
+        error = row.get('error')
+        cols[3].metric("Error", "None" if not error or pd.isna(error) else "Yes")
 
 
 def main():
